@@ -181,7 +181,7 @@ const App: React.FC = () => {
             <div className="text-center mb-12">
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-neutral-900/50 border border-neutral-800/50 text-[10px] font-mono text-neutral-400 uppercase tracking-[0.2em] mb-8">
                 <span className="w-1 h-1 rounded-full bg-white"></span>
-                Mark Intelligence Active
+                D.A.N.N.I. Active
               </div>
               <h2 className="text-4xl md:text-5xl font-serif text-white mb-6 leading-tight">
                 What intrigues me most<br /><span className="italic text-neutral-600">is what your sketch wants to become.</span>

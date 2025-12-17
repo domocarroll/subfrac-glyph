@@ -16,7 +16,7 @@ export const Header: React.FC = () => {
               SUBFRAC<span className="text-neutral-500">.</span>GLYPH
             </h1>
             <p className="text-[9px] font-mono text-neutral-600 uppercase tracking-[0.2em] leading-none">
-              Mark Intelligence
+              D.A.N.N.I.
             </p>
           </div>
         </div>
