@@ -2,7 +2,13 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { DesignAnalysis, StyleDirection } from "../types";
 
 // Helper to get client with current key
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+const getAI = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey || apiKey === 'undefined') {
+    throw new Error("MISSING_API_KEY");
+  }
+  return new GoogleGenAI({ apiKey });
+};
 
 /**
  * PHASE 1: Analyze the sketch to extract intent and design DNA.
@@ -13,7 +19,7 @@ export const analyzeSketch = async (base64Image: string): Promise<DesignAnalysis
     const ai = getAI();
     // Using the most powerful reasoning model available
     const model = 'gemini-3-pro-preview';
-    
+
     const prompt = `
       ROLE: Master Typographer & Brand Identity Designer.
       TASK: Analyze this rough sketch for a wordmark.
@@ -56,7 +62,7 @@ export const analyzeSketch = async (base64Image: string): Promise<DesignAnalysis
 
     const jsonText = response.text;
     if (!jsonText) throw new Error("No analysis returned");
-    
+
     return JSON.parse(jsonText) as DesignAnalysis;
 
   } catch (error) {
@@ -130,7 +136,7 @@ export const generateRefinedWordmark = async (
       config: {
         imageConfig: {
           aspectRatio: "1:1",
-          imageSize: "1K" 
+          imageSize: "1K"
         }
       }
     });
@@ -161,7 +167,7 @@ export const refineWordmark = async (
   try {
     const ai = getAI();
     const model = 'gemini-3-pro-image-preview';
-    
+
     // Clean base64 just in case
     const cleanBase64 = currentImageBase64.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
 

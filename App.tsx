@@ -12,28 +12,32 @@ const App: React.FC = () => {
   const [phase, setPhase] = useState<AppPhase>(AppPhase.IDLE);
   const [base64Sketch, setBase64Sketch] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<DesignAnalysis | null>(null);
-  
+
   // Concept State
   const [brandName, setBrandName] = useState<string>('');
   const [concepts, setConcepts] = useState<ConceptDraft[]>([]);
-  
+
   // Final Selection & Chat State
   const [selectedConcept, setSelectedConcept] = useState<ConceptDraft | null>(null);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null); // The current active image
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isRefining, setIsRefining] = useState(false);
-  
+
   const resultRef = useRef<HTMLDivElement>(null);
 
   const handleFileSelected = async (base64: string) => {
     setBase64Sketch(base64);
     setPhase(AppPhase.ANALYZING);
     try {
-      const result = await analyzeSketch(base64);
       setAnalysis(result);
       setPhase(AppPhase.REVIEW);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
+      if (error.message === 'MISSING_API_KEY') {
+        alert("API Key is missing. Please configure GEMINI_API_KEY in your Vercel project settings.");
+        setPhase(AppPhase.IDLE); // Reset to idle so they can try again after fixing
+        return;
+      }
       setPhase(AppPhase.ERROR);
     }
   };
@@ -42,7 +46,7 @@ const App: React.FC = () => {
     if (!base64Sketch || !analysis || !brandName) return;
 
     setPhase(AppPhase.SELECTION); // Move to selection view immediately
-    
+
     // Initialize placeholders
     const styles = [
       StyleDirection.BOLD,
@@ -61,11 +65,15 @@ const App: React.FC = () => {
     styles.forEach(async (style) => {
       try {
         const url = await generateRefinedWordmark(base64Sketch, analysis, style, brandName);
-        setConcepts(prev => prev.map(c => 
+        setConcepts(prev => prev.map(c =>
           c.style === style ? { ...c, imageUrl: url, status: 'success' } : c
         ));
-      } catch (error) {
+      } catch (error: any) {
         console.error(`Failed to generate ${style}`, error);
+        if (error.message === 'MISSING_API_KEY') {
+          alert("API Key is missing. Please configure GEMINI_API_KEY in your Vercel project settings.");
+          return;
+        }
         setConcepts(prev => prev.map(c =>
           c.style === style ? { ...c, status: 'error' } : c
         ));
@@ -124,13 +132,19 @@ const App: React.FC = () => {
       };
       setChatMessages(prev => [...prev, aiMsg]);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Refinement error", error);
+
+      let errorMessage = "I encountered an issue refining the design. Please try rephrasing your request.";
+      if (error.message === 'MISSING_API_KEY') {
+        errorMessage = "API Key is missing. Please configure GEMINI_API_KEY in your Vercel project settings.";
+      }
+
       const errorMsg: ChatMessage = {
-         id: Date.now().toString(),
-         role: 'ai',
-         text: "I encountered an issue refining the design. Please try rephrasing your request.",
-         timestamp: Date.now()
+        id: Date.now().toString(),
+        role: 'ai',
+        text: errorMessage,
+        timestamp: Date.now()
       };
       setChatMessages(prev => [...prev, errorMsg]);
     } finally {
@@ -160,17 +174,17 @@ const App: React.FC = () => {
       <Header />
 
       <main className="max-w-7xl mx-auto px-6 py-12">
-        
+
         {/* Phase: IDLE / Upload */}
         {phase === AppPhase.IDLE && (
           <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-700">
-             <div className="text-center mb-12">
+            <div className="text-center mb-12">
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-neutral-900/50 border border-neutral-800/50 text-[10px] font-mono text-neutral-400 uppercase tracking-[0.2em] mb-8">
                 <span className="w-1 h-1 rounded-full bg-white"></span>
                 Mark Intelligence Active
               </div>
               <h2 className="text-4xl md:text-5xl font-serif text-white mb-6 leading-tight">
-                What intrigues me most<br/><span className="italic text-neutral-600">is what your sketch wants to become.</span>
+                What intrigues me most<br /><span className="italic text-neutral-600">is what your sketch wants to become.</span>
               </h2>
               <p className="text-neutral-500 text-base max-w-lg mx-auto leading-relaxed font-light">
                 Upload your rough concept. I'll analyze its hidden geometry and generate four distinct typographic directions—each one a different path to the same destination.
@@ -198,8 +212,8 @@ const App: React.FC = () => {
           <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in duration-700">
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-neutral-800/30">
-               {/* Sketch Preview */}
-               <div className="relative bg-neutral-900 aspect-video flex items-center justify-center">
+              {/* Sketch Preview */}
+              <div className="relative bg-neutral-900 aspect-video flex items-center justify-center">
                 <div className="absolute top-4 left-4 text-[9px] font-mono text-neutral-600 uppercase tracking-[0.2em]">
                   Source
                 </div>
@@ -208,27 +222,27 @@ const App: React.FC = () => {
 
               {/* Controls */}
               <div className="bg-neutral-950 p-8 space-y-6">
-                 <div>
-                    <label className="block text-[9px] font-mono text-neutral-600 uppercase tracking-[0.2em] mb-4">Brand Name</label>
-                    <input
-                      type="text"
-                      value={brandName}
-                      onChange={(e) => setBrandName(e.target.value)}
-                      placeholder="Enter brand name"
-                      className="w-full bg-transparent border-b border-neutral-800 text-2xl font-serif text-white pb-3 focus:outline-none focus:border-neutral-600 transition-colors placeholder:text-neutral-800"
-                      autoFocus
-                    />
-                  </div>
-                  <div className="pt-6">
-                    <button
-                      onClick={handleGenerateConcepts}
-                      disabled={!brandName}
-                      className="w-full bg-white text-neutral-950 font-mono text-xs uppercase tracking-wider h-12 flex items-center justify-center gap-2 hover:bg-neutral-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <PenTool size={14} />
-                      <span>Generate Four Directions</span>
-                    </button>
-                  </div>
+                <div>
+                  <label className="block text-[9px] font-mono text-neutral-600 uppercase tracking-[0.2em] mb-4">Brand Name</label>
+                  <input
+                    type="text"
+                    value={brandName}
+                    onChange={(e) => setBrandName(e.target.value)}
+                    placeholder="Enter brand name"
+                    className="w-full bg-transparent border-b border-neutral-800 text-2xl font-serif text-white pb-3 focus:outline-none focus:border-neutral-600 transition-colors placeholder:text-neutral-800"
+                    autoFocus
+                  />
+                </div>
+                <div className="pt-6">
+                  <button
+                    onClick={handleGenerateConcepts}
+                    disabled={!brandName}
+                    className="w-full bg-white text-neutral-950 font-mono text-xs uppercase tracking-wider h-12 flex items-center justify-center gap-2 hover:bg-neutral-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <PenTool size={14} />
+                    <span>Generate Four Directions</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -239,13 +253,13 @@ const App: React.FC = () => {
         {/* Phase: SELECTION (The Grid) */}
         {(phase === AppPhase.SELECTION) && (
           <div className="max-w-5xl mx-auto">
-             <ConceptPicker concepts={concepts} onSelect={handleSelectConcept} />
+            <ConceptPicker concepts={concepts} onSelect={handleSelectConcept} />
 
-             <div className="mt-12 text-center">
-                <button onClick={() => setPhase(AppPhase.REVIEW)} className="text-neutral-600 hover:text-neutral-400 text-[10px] font-mono uppercase tracking-wider transition-colors">
-                   ← Back to Analysis
-                </button>
-             </div>
+            <div className="mt-12 text-center">
+              <button onClick={() => setPhase(AppPhase.REVIEW)} className="text-neutral-600 hover:text-neutral-400 text-[10px] font-mono uppercase tracking-wider transition-colors">
+                ← Back to Analysis
+              </button>
+            </div>
           </div>
         )}
 
@@ -259,7 +273,7 @@ const App: React.FC = () => {
                 <span className="text-[10px] font-mono uppercase tracking-wider">New Project</span>
               </button>
               <div className="flex gap-4">
-                 <a
+                <a
                   href={generatedImage}
                   download={`subfrac-glyph-${brandName}-${selectedConcept.style}.png`}
                   className="flex items-center gap-2 bg-white text-neutral-950 px-5 py-2 text-[10px] font-mono uppercase tracking-wider hover:bg-neutral-100 transition-colors"
@@ -271,27 +285,27 @@ const App: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-neutral-800/30 mb-12">
-               {/* Original */}
-               <div className="bg-neutral-900 p-12 flex flex-col items-center justify-center relative min-h-[400px]">
-                  <span className="absolute top-6 left-6 text-[9px] font-mono text-neutral-700 uppercase tracking-[0.2em]">Source</span>
-                  <img src={`data:image/jpeg;base64,${base64Sketch}`} alt="Original" className="max-w-full max-h-[250px] opacity-50 grayscale" />
-               </div>
+              {/* Original */}
+              <div className="bg-neutral-900 p-12 flex flex-col items-center justify-center relative min-h-[400px]">
+                <span className="absolute top-6 left-6 text-[9px] font-mono text-neutral-700 uppercase tracking-[0.2em]">Source</span>
+                <img src={`data:image/jpeg;base64,${base64Sketch}`} alt="Original" className="max-w-full max-h-[250px] opacity-50 grayscale" />
+              </div>
 
-               {/* Selected/Refined */}
-               <div className="bg-white p-12 flex flex-col items-center justify-center relative min-h-[400px]">
-                  <div className="absolute top-6 left-6 flex items-center gap-3">
-                    <span className="text-[9px] font-mono text-neutral-400 uppercase tracking-[0.2em]">Active</span>
-                    <span className="text-[9px] font-mono text-neutral-300 uppercase tracking-[0.15em]">
-                      {selectedConcept.style}
-                    </span>
-                  </div>
-                  <img src={generatedImage} alt="Generated" className="max-w-full max-h-[250px]" />
+              {/* Selected/Refined */}
+              <div className="bg-white p-12 flex flex-col items-center justify-center relative min-h-[400px]">
+                <div className="absolute top-6 left-6 flex items-center gap-3">
+                  <span className="text-[9px] font-mono text-neutral-400 uppercase tracking-[0.2em]">Active</span>
+                  <span className="text-[9px] font-mono text-neutral-300 uppercase tracking-[0.15em]">
+                    {selectedConcept.style}
+                  </span>
+                </div>
+                <img src={generatedImage} alt="Generated" className="max-w-full max-h-[250px]" />
 
-                  <div className="absolute bottom-6 right-6 flex items-center gap-2">
-                     <div className="h-px w-6 bg-neutral-200"></div>
-                     <span className="text-[8px] font-mono text-neutral-400 uppercase tracking-[0.2em]">Subfrac.Glyph</span>
-                  </div>
-               </div>
+                <div className="absolute bottom-6 right-6 flex items-center gap-2">
+                  <div className="h-px w-6 bg-neutral-200"></div>
+                  <span className="text-[8px] font-mono text-neutral-400 uppercase tracking-[0.2em]">Subfrac.Glyph</span>
+                </div>
+              </div>
             </div>
 
             {/* CHAT SECTION */}
@@ -304,24 +318,24 @@ const App: React.FC = () => {
           </div>
         )}
 
-         {/* Error State */}
-         {phase === AppPhase.ERROR && (
-           <div className="text-center py-20">
-             <div className="inline-flex items-center justify-center w-12 h-12 border border-neutral-800 text-neutral-600 mb-8">
-               <Loader2 className="w-5 h-5" />
-             </div>
-             <h3 className="text-xl text-white font-serif italic mb-2">Something shifted unexpectedly...</h3>
-             <p className="text-neutral-600 text-sm mb-10">
-               The process was interrupted. Let's try again.
-             </p>
-             <button
-               onClick={handleReset}
-               className="px-6 py-3 bg-white text-neutral-950 font-mono text-xs uppercase tracking-wider hover:bg-neutral-100 transition-colors"
-             >
-               Start Over
-             </button>
-           </div>
-         )}
+        {/* Error State */}
+        {phase === AppPhase.ERROR && (
+          <div className="text-center py-20">
+            <div className="inline-flex items-center justify-center w-12 h-12 border border-neutral-800 text-neutral-600 mb-8">
+              <Loader2 className="w-5 h-5" />
+            </div>
+            <h3 className="text-xl text-white font-serif italic mb-2">Something shifted unexpectedly...</h3>
+            <p className="text-neutral-600 text-sm mb-10">
+              The process was interrupted. Let's try again.
+            </p>
+            <button
+              onClick={handleReset}
+              className="px-6 py-3 bg-white text-neutral-950 font-mono text-xs uppercase tracking-wider hover:bg-neutral-100 transition-colors"
+            >
+              Start Over
+            </button>
+          </div>
+        )}
 
       </main>
     </div>
