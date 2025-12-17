@@ -6,12 +6,9 @@ import { RefinementChat } from './components/RefinementChat';
 import { ConceptPicker } from './components/ConceptPicker';
 import { analyzeSketch, generateRefinedWordmark, refineWordmark } from './services/geminiService';
 import { AppPhase, DesignAnalysis, StyleDirection, ChatMessage, ConceptDraft } from './types';
-import { Loader2, RefreshCw, Download, ArrowRight, Key, ShieldCheck, PenTool } from 'lucide-react';
+import { Loader2, RefreshCw, Download, PenTool } from 'lucide-react';
 
 const App: React.FC = () => {
-  const [hasKey, setHasKey] = useState<boolean>(false);
-  const [checkingKey, setCheckingKey] = useState<boolean>(true);
-
   const [phase, setPhase] = useState<AppPhase>(AppPhase.IDLE);
   const [base64Sketch, setBase64Sketch] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<DesignAnalysis | null>(null);
@@ -27,36 +24,6 @@ const App: React.FC = () => {
   const [isRefining, setIsRefining] = useState(false);
   
   const resultRef = useRef<HTMLDivElement>(null);
-
-  // Check for API Key on mount
-  useEffect(() => {
-    const checkKey = async () => {
-      try {
-        if (window.aistudio && window.aistudio.hasSelectedApiKey) {
-          const has = await window.aistudio.hasSelectedApiKey();
-          setHasKey(has);
-        } else {
-          if (process.env.API_KEY) setHasKey(true);
-        }
-      } catch (e) {
-        console.error("Error checking key", e);
-      } finally {
-        setCheckingKey(false);
-      }
-    };
-    checkKey();
-  }, []);
-
-  const handleSelectKey = async () => {
-    try {
-      if (window.aistudio && window.aistudio.openSelectKey) {
-        await window.aistudio.openSelectKey();
-        setHasKey(true);
-      }
-    } catch (e) {
-      console.error("Failed to select key", e);
-    }
-  };
 
   const handleFileSelected = async (base64: string) => {
     setBase64Sketch(base64);
@@ -99,12 +66,9 @@ const App: React.FC = () => {
         ));
       } catch (error) {
         console.error(`Failed to generate ${style}`, error);
-        setConcepts(prev => prev.map(c => 
+        setConcepts(prev => prev.map(c =>
           c.style === style ? { ...c, status: 'error' } : c
         ));
-        if (String(error).includes("Requested entity was not found")) {
-           setHasKey(false);
-        }
       }
     });
   };
@@ -190,38 +154,6 @@ const App: React.FC = () => {
       resultRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [phase]);
-
-  // --- RENDERS ---
-
-  if (checkingKey) {
-    return (
-      <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-neutral-600 animate-spin" />
-      </div>
-    );
-  }
-
-  if (!hasKey) {
-    return (
-      <div className="min-h-screen bg-neutral-950 text-neutral-200 font-sans flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-12 h-12 bg-white text-neutral-950 flex items-center justify-center mb-8">
-           <Key size={20} strokeWidth={2} />
-        </div>
-        <p className="text-[10px] font-mono text-neutral-600 uppercase tracking-[0.3em] mb-4">Subfracture Studio</p>
-        <h1 className="text-3xl md:text-4xl font-serif text-white mb-4">SUBFRAC.GLYPH</h1>
-        <p className="text-neutral-500 max-w-md mb-10 leading-relaxed font-light">
-          I sense something waiting to be born in your sketches. Connect your API key and let's discover what your brand mark wants to become.
-        </p>
-        <button
-          onClick={handleSelectKey}
-          className="bg-white text-neutral-950 hover:bg-neutral-100 px-8 py-4 font-mono text-sm uppercase tracking-wider transition-all flex items-center gap-3 group"
-        >
-          <span>Initialize Connection</span>
-          <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-200 font-sans selection:bg-white selection:text-black">
