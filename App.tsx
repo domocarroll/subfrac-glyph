@@ -29,13 +29,14 @@ const App: React.FC = () => {
     setBase64Sketch(base64);
     setPhase(AppPhase.ANALYZING);
     try {
+      const result = await analyzeSketch(base64);
       setAnalysis(result);
       setPhase(AppPhase.REVIEW);
     } catch (error: any) {
-      console.error(error);
+      console.error("Analysis error:", error);
       if (error.message === 'MISSING_API_KEY') {
         alert("API Key is missing. Please configure GEMINI_API_KEY in your Vercel project settings.");
-        setPhase(AppPhase.IDLE); // Reset to idle so they can try again after fixing
+        setPhase(AppPhase.IDLE);
         return;
       }
       setPhase(AppPhase.ERROR);
@@ -45,9 +46,8 @@ const App: React.FC = () => {
   const handleGenerateConcepts = async () => {
     if (!base64Sketch || !analysis || !brandName) return;
 
-    setPhase(AppPhase.SELECTION); // Move to selection view immediately
+    setPhase(AppPhase.SELECTION);
 
-    // Initialize placeholders
     const styles = [
       StyleDirection.BOLD,
       StyleDirection.ELEGANT,
@@ -61,24 +61,28 @@ const App: React.FC = () => {
       status: 'loading'
     })));
 
-    // Fire requests in parallel but update state independently
-    styles.forEach(async (style) => {
+    // Generate all concepts in parallel with proper error handling
+    const generateConcept = async (style: StyleDirection) => {
       try {
         const url = await generateRefinedWordmark(base64Sketch, analysis, style, brandName);
         setConcepts(prev => prev.map(c =>
           c.style === style ? { ...c, imageUrl: url, status: 'success' } : c
         ));
       } catch (error: any) {
-        console.error(`Failed to generate ${style}`, error);
-        if (error.message === 'MISSING_API_KEY') {
-          alert("API Key is missing. Please configure GEMINI_API_KEY in your Vercel project settings.");
-          return;
-        }
+        console.error(`Failed to generate ${style}:`, error);
         setConcepts(prev => prev.map(c =>
           c.style === style ? { ...c, status: 'error' } : c
         ));
+
+        // Only show alert once for API key issues
+        if (error.message === 'MISSING_API_KEY') {
+          alert("I sense a connection issue... The API key appears to be missing. Please configure GEMINI_API_KEY in your Vercel project settings.");
+        }
       }
-    });
+    };
+
+    // Fire all requests
+    await Promise.allSettled(styles.map(generateConcept));
   };
 
   const handleSelectConcept = (concept: ConceptDraft) => {
@@ -133,11 +137,13 @@ const App: React.FC = () => {
       setChatMessages(prev => [...prev, aiMsg]);
 
     } catch (error: any) {
-      console.error("Refinement error", error);
+      console.error("Refinement error:", error);
 
-      let errorMessage = "I encountered an issue refining the design. Please try rephrasing your request.";
+      let errorMessage = "Something shifted unexpectedly in the creative flow... Let me try a different approach. Could you rephrase what you're looking for?";
       if (error.message === 'MISSING_API_KEY') {
-        errorMessage = "API Key is missing. Please configure GEMINI_API_KEY in your Vercel project settings.";
+        errorMessage = "I sense a connection issue... The creative channel appears blocked. Please check that the API key is configured correctly.";
+      } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+        errorMessage = "The connection wavered for a moment... Let's try that refinement again.";
       }
 
       const errorMsg: ChatMessage = {
@@ -320,19 +326,19 @@ const App: React.FC = () => {
 
         {/* Error State */}
         {phase === AppPhase.ERROR && (
-          <div className="text-center py-20">
+          <div className="text-center py-20 max-w-md mx-auto">
             <div className="inline-flex items-center justify-center w-12 h-12 border border-neutral-800 text-neutral-600 mb-8">
               <Loader2 className="w-5 h-5" />
             </div>
-            <h3 className="text-xl text-white font-serif italic mb-2">Something shifted unexpectedly...</h3>
-            <p className="text-neutral-600 text-sm mb-10">
-              The process was interrupted. Let's try again.
+            <h3 className="text-xl text-white font-serif italic mb-4">Something shifted unexpectedly...</h3>
+            <p className="text-neutral-500 text-sm mb-10 leading-relaxed">
+              The creative flow was interrupted. This sometimes happens when the sketch needs a moment to reveal its secrets. Shall we try again?
             </p>
             <button
               onClick={handleReset}
               className="px-6 py-3 bg-white text-neutral-950 font-mono text-xs uppercase tracking-wider hover:bg-neutral-100 transition-colors"
             >
-              Start Over
+              Begin Again
             </button>
           </div>
         )}
